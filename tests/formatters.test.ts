@@ -7,6 +7,8 @@ import {
   formatAgentError,
   formatAgentRunStarted,
   formatAgentRunFinished,
+  getMessageLanguage,
+  maskSecrets,
 } from "../src/formatters.js";
 import type { PluginEvent } from "@paperclipai/plugin-sdk";
 
@@ -245,5 +247,138 @@ describe("formatAgentRunFinished", () => {
   it("disables notification", () => {
     const msg = formatAgentRunFinished(mockEvent());
     expect(msg.options.disableNotification).toBe(true);
+  });
+});
+
+describe("getMessageLanguage", () => {
+  it("returns en for tech role: developer", () => {
+    expect(getMessageLanguage("developer")).toBe("en");
+  });
+
+  it("returns en for tech role: cto", () => {
+    expect(getMessageLanguage("cto")).toBe("en");
+  });
+
+  it("returns en for tech role: qa", () => {
+    expect(getMessageLanguage("qa")).toBe("en");
+  });
+
+  it("returns en for tech role: devops", () => {
+    expect(getMessageLanguage("devops")).toBe("en");
+  });
+
+  it("returns en for tech role: n8n-engineer", () => {
+    expect(getMessageLanguage("n8n-engineer")).toBe("en");
+  });
+
+  it("returns en for tech role: security", () => {
+    expect(getMessageLanguage("security")).toBe("en");
+  });
+
+  it("returns ua for business role: ceo", () => {
+    expect(getMessageLanguage("ceo")).toBe("ua");
+  });
+
+  it("returns ua for business role: cmo", () => {
+    expect(getMessageLanguage("cmo")).toBe("ua");
+  });
+
+  it("returns ua for business role: sales", () => {
+    expect(getMessageLanguage("sales")).toBe("ua");
+  });
+
+  it("returns ua for business role: cho", () => {
+    expect(getMessageLanguage("cho")).toBe("ua");
+  });
+
+  it("returns ua for business role: hr", () => {
+    expect(getMessageLanguage("hr")).toBe("ua");
+  });
+
+  it("returns en for undefined (fallback)", () => {
+    expect(getMessageLanguage(undefined)).toBe("en");
+  });
+
+  it("returns en for unknown role (fallback)", () => {
+    expect(getMessageLanguage("unknown-role")).toBe("en");
+  });
+});
+
+describe("maskSecrets", () => {
+  it("masks sk- tokens", () => {
+    expect(maskSecrets("Error with sk-abc123xyz456 token")).toBe("Error with [REDACTED] token");
+  });
+
+  it("masks ghp_ tokens", () => {
+    expect(maskSecrets("Using ghp_AbCdEfGhIjKlMnOp token")).toBe("Using [REDACTED] token");
+  });
+
+  it("masks xoxb- tokens", () => {
+    expect(maskSecrets("Slack xoxb-123-456-abc token failed")).toBe("Slack [REDACTED] token failed");
+  });
+
+  it("masks Bearer tokens", () => {
+    expect(maskSecrets("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.secret")).toBe(
+      "Authorization: [REDACTED]",
+    );
+  });
+
+  it("masks password= patterns", () => {
+    expect(maskSecrets("connect string password=mysecretpw host=db")).toBe(
+      "connect string [REDACTED] host=db",
+    );
+  });
+
+  it("returns text unchanged when no secrets", () => {
+    expect(maskSecrets("This is a normal error message")).toBe("This is a normal error message");
+  });
+
+  it("truncates text longer than 200 chars", () => {
+    const long = "x".repeat(250);
+    const result = maskSecrets(long);
+    expect(result.length).toBeLessThanOrEqual(203);
+    expect(result.endsWith("...")).toBe(true);
+  });
+});
+
+describe("emoji category markers", () => {
+  it("formatAgentError uses 🚨 error marker", () => {
+    const msg = formatAgentError(mockEvent({ agentName: "Builder", error: "boom" }));
+    expect(msg.text).toContain("🚨");
+  });
+
+  it("formatApprovalCreated uses ⚠️ approval marker", () => {
+    const msg = formatApprovalCreated(mockEvent({ type: "deploy", approvalId: "apr-1" }));
+    expect(msg.text).toContain("⚠️");
+  });
+
+  it("formatIssueCreated uses 📋 status marker", () => {
+    const msg = formatIssueCreated(mockEvent());
+    expect(msg.text).toContain("📋");
+  });
+
+  it("formatIssueDone uses 📋 status marker", () => {
+    const msg = formatIssueDone(mockEvent());
+    expect(msg.text).toContain("📋");
+  });
+
+  it("formatIssueAssigned uses 📋 status marker", () => {
+    const msg = formatIssueAssigned(mockEvent({ assigneeName: "Nuno" }));
+    expect(msg.text).toContain("📋");
+  });
+});
+
+describe("maskSecrets applied in formatAgentError", () => {
+  it("redacts sk- token in error field", () => {
+    const msg = formatAgentError(mockEvent({ error: "API call failed: sk-realtoken123 invalid" }));
+    expect(msg.text).not.toContain("sk-realtoken123");
+    // MarkdownV2 escapes [ and ] — \[REDACTED\] is the correct form in the message text
+    expect(msg.text).toContain("\\[REDACTED\\]");
+  });
+
+  it("truncates error longer than 200 chars", () => {
+    const longError = "Connection failed: " + "x".repeat(250);
+    const msg = formatAgentError(mockEvent({ error: longError }));
+    expect(msg.text).not.toContain("x".repeat(201));
   });
 });

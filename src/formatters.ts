@@ -2,6 +2,33 @@ import type { PluginEvent } from "@paperclipai/plugin-sdk";
 import { escapeMarkdownV2, truncateAtWord } from "./telegram-api.js";
 import type { SendMessageOptions } from "./telegram-api.js";
 
+const TECH_ROLES = new Set(["cto", "developer", "qa", "devops", "n8n-engineer", "security"]);
+const BUSINESS_ROLES = new Set(["ceo", "cmo", "sales", "cho", "hr"]);
+
+export function getMessageLanguage(agentRole?: string): "ua" | "en" {
+  if (agentRole && BUSINESS_ROLES.has(agentRole)) return "ua";
+  return "en";
+}
+
+const SECRET_PATTERNS = [
+  /sk-[A-Za-z0-9_-]{10,}/g,
+  /ghp_[A-Za-z0-9_]{10,}/g,
+  /xoxb-[A-Za-z0-9_-]{10,}/g,
+  /Bearer\s+\S+/g,
+  /password=[^\s]+/gi,
+];
+
+export function maskSecrets(text: string): string {
+  let result = text;
+  for (const pattern of SECRET_PATTERNS) {
+    result = result.replace(pattern, "[REDACTED]");
+  }
+  if (result.length > 200) {
+    result = result.slice(0, 200) + "...";
+  }
+  return result;
+}
+
 type Payload = Record<string, unknown>;
 
 type FormattedMessage = {
@@ -72,7 +99,7 @@ export function formatIssueCreated(event: PluginEvent, opts?: IssueLinksOpts): F
   const projectName = p.projectName ? String(p.projectName) : null;
 
   const lines: string[] = [
-    `${esc("📋")} ${bold("Issue Created")}: ${issueLink(identifier, opts)}`,
+    `📋 ${bold("Issue Created")} \\(${issueLink(identifier, opts)}\\)`,
     bold(title),
   ];
 
@@ -107,7 +134,7 @@ export function formatIssueAssigned(event: PluginEvent, opts?: IssueLinksOpts): 
   const prevAssigneeName = prev.assigneeName ? String(prev.assigneeName) : null;
 
   const lines: string[] = [
-    `${esc("🎯")} ${bold("Issue Assigned")}: ${issueLink(identifier, opts)}`,
+    `📋 ${bold("Issue Assigned")} \\(${issueLink(identifier, opts)}\\)`,
     bold(title),
   ];
 
@@ -138,7 +165,7 @@ export function formatIssueDone(event: PluginEvent, opts?: IssueLinksOpts): Form
   const comment = p.comment ? String(p.comment) : null;
 
   const lines: string[] = [
-    `${esc("✅")} ${bold("Issue Completed")}: ${issueLink(identifier, opts)}`,
+    `📋 ${bold("Issue Completed")} \\(${issueLink(identifier, opts)}\\)`,
     `${bold(title)} ${esc("is now done.")}`,
   ];
 
@@ -166,7 +193,7 @@ export function formatApprovalCreated(event: PluginEvent, opts?: IssueLinksOpts)
   const agentName = p.agentName ? String(p.agentName) : null;
 
   const lines: string[] = [
-    `${esc("🔔")} ${bold("Approval Requested")}`,
+    `⚠️ ${bold("Approval Requested")}`,
     bold(title),
   ];
 
@@ -224,8 +251,9 @@ export function formatAgentError(event: PluginEvent, opts?: IssueLinksOpts): For
   const issueIdentifier = p.issueIdentifier ? String(p.issueIdentifier) : null;
   const issueTitle = p.issueTitle ? String(p.issueTitle) : null;
 
+  const maskedError = maskSecrets(errorMessage);
   const lines: string[] = [
-    `${esc("❌")} ${bold(classifyAgentError(errorMessage))}`,
+    `🚨 ${bold(classifyAgentError(maskedError))}`,
     `Agent: ${bold(agentName)}`,
   ];
   if (companyName) lines.push(`Company: ${esc(companyName)}`);
@@ -236,7 +264,7 @@ export function formatAgentError(event: PluginEvent, opts?: IssueLinksOpts): For
         : `Issue: ${issueLink(issueIdentifier, opts)}`,
     );
   }
-  lines.push(`\n${code(truncateAtWord(errorMessage, 500))}`);
+  lines.push(`\n${code(maskedError)}`);
 
   const buttons = [
     runButton(agentId, runId, opts?.baseUrl),
