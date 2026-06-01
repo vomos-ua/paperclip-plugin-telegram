@@ -460,9 +460,11 @@ const plugin = definePlugin({
       const linksOpts = await resolveIssueLinksOpts(event.companyId);
       const msg = formatter(event, linksOpts);
 
-      let messageThreadId = parseTopicId(overrideTopicId);
+      // LP: department-first routing — a mapped project topic wins; the
+      // category topic (approvalsTopicId/errorsTopicId) is only a fallback.
+      let messageThreadId = await resolveNotificationThreadId(ctx, chatId, event, config.topicRouting);
       if (!messageThreadId) {
-        messageThreadId = await resolveNotificationThreadId(ctx, chatId, event, config.topicRouting);
+        messageThreadId = parseTopicId(overrideTopicId);
       }
 
       if (messageThreadId) {
@@ -622,6 +624,12 @@ const plugin = definePlugin({
                 status: i!.status,
                 priority: i!.priority,
               }));
+            // LP: resolve project from the first linked issue so the approval
+            // routes to that department's topic (event itself carries no project).
+            const firstWithProject = issues.find((i) => i?.projectId);
+            if (firstWithProject?.projectId && !payload.projectId) {
+              payload.projectId = firstWithProject.projectId;
+            }
             // Use first issue's title as the approval title if missing
             if (!payload.title && issues[0]) {
               payload.title = issues[0].identifier

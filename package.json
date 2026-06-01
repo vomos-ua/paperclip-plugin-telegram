@@ -1,6 +1,6 @@
 {
-  "name": "paperclip-plugin-telegram",
-  "version": "0.6.1",
+  "name": "@vomos-ua/paperclip-plugin-telegram",
+  "version": "1.0.0",
   "type": "module",
   "main": "./dist/index.js",
   "paperclipPlugin": {
@@ -35,7 +35,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mvanhorn/paperclip-plugin-telegram.git"
+    "url": "git+https://github.com/vomos-ua/paperclip-plugin-telegram.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "license": "MIT"
 }
