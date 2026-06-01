@@ -1,33 +1,30 @@
-name: Publish to npm
+name: Publish to GitHub Packages
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main]
-    paths:
-      - "src/**"
-      - "package.json"
+    tags:
+      - "v*"
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@vomos-ua"
+
       - run: npm ci
       - run: npm run build
-      - run: |
-          VERSION=$(node -p "require('./package.json').version")
-          NAME=$(node -p "require('./package.json').name")
-          if npm view "${NAME}@${VERSION}" version 2>/dev/null; then
-            echo "Version ${VERSION} already published, skipping."
-          else
-            npm publish --provenance --access public
-          fi
+      - run: npm test
 
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
