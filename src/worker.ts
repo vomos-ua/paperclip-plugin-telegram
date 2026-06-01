@@ -692,10 +692,13 @@ const plugin = definePlugin({
 
     const enrichAgentName = async (event: PluginEvent) => {
       const payload = event.payload as Record<string, unknown>;
-      if (payload.agentId && !payload.agentName) {
+      if (payload.agentId && (!payload.agentName || !payload.agentRole)) {
         try {
           const agent = await ctx.agents.get(String(payload.agentId), event.companyId);
-          if (agent) payload.agentName = agent.name;
+          if (agent) {
+            if (!payload.agentName) payload.agentName = agent.name;
+            payload.agentRole = (agent as Agent & { role?: string }).role;
+          }
         } catch { /* best effort */ }
       }
     };
